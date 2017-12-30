@@ -6,6 +6,9 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <map>
+
+//OBJ loading code taken from https://github.com/BennyQBD/ModernOpenGLTutorial
 
 using glm::vec3;
 using glm::vec2; 
@@ -62,6 +65,8 @@ public:
 	MyObjLoader();
 	~MyObjLoader();
 
+	bool LoadObj(const char* path);
+
 	bool LoadObj(const char* path, std::vector<vec3> & outVerts, std::vector<vec2> & outUVs, std::vector<vec3> & outNormals, std::vector<OBJIndex> & outObjIndices);
 
 	bool LoadObj(const char* path, std::vector<vec3> & outVerts, std::vector<vec2> & outUVs, std::vector<vec3> & outNormals,
@@ -69,7 +74,7 @@ public:
 
 	int LoadObj(const char* path, std::vector<vec3> & outVerts, std::vector<unsigned int> & outIndices);
 
-
+	IndexedModel ToIndexedModel();
 
 private:
 	unsigned int FindLastVertexIndex(const std::vector<OBJIndex*>& indexLookup, const OBJIndex* currentIndex, const IndexedModel& result);

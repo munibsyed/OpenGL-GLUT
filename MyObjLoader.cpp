@@ -15,6 +15,56 @@ MyObjLoader::~MyObjLoader()
 {
 }
 
+bool MyObjLoader::LoadObj(const char * path)
+{
+	std::ifstream file;
+	file.open(path);
+	int linesProcessed = 0;
+	while (!file.eof())
+	{
+		std::string line;
+		if (file.is_open())
+		{
+			while (file.good())
+			{
+				getline(file, line);
+				linesProcessed++;
+				if (linesProcessed % 10000 == 0)
+					std::cout << linesProcessed << std::endl;
+				unsigned int lineLength = line.length();
+
+				if (lineLength < 2)
+					continue;
+
+				const char* lineCStr = line.c_str();
+
+				switch (lineCStr[0])
+				{
+				case 'v':
+					if (lineCStr[1] == 't')
+						this->uvs.push_back(ParseOBJVec2(line));
+					else if (lineCStr[1] == 'n')
+						this->normals.push_back(ParseOBJVec3(line));
+					else if (lineCStr[1] == ' ' || lineCStr[1] == '\t')
+						this->vertices.push_back(ParseOBJVec3(line));
+					break;
+				case 'f':
+					CreateOBJFace(line);
+					break;
+				default: break;
+				};
+			}
+		}
+		else
+		{
+			std::cerr << "Unable to load mesh: " << path << std::endl;
+			return false;
+		}
+
+		return true;
+	}
+}
+
 bool MyObjLoader::LoadObj(const char * path, std::vector<vec3> & outVerts, std::vector<vec2> & outUVs, std::vector<vec3> & outNormals, std::vector<OBJIndex> & outObjIndices)
 {
 	std::ifstream file;
@@ -279,6 +329,95 @@ int MyObjLoader::LoadObj(const char * path, std::vector<vec3> & outVerts, std::v
 	//}
 
 	return 0;
+}
+
+IndexedModel MyObjLoader::ToIndexedModel()
+{
+	IndexedModel result;
+	IndexedModel normalModel;
+
+	//hasUVs bool seems to be incorrect
+	if (uvs.size() == 0)
+		hasUVs = false;
+
+	if (normals.size() == 0)
+		hasNormals = false;
+
+	unsigned int numIndices = OBJIndices.size();
+
+	std::vector<OBJIndex*> indexLookup;
+
+	for (unsigned int i = 0; i < numIndices; i++)
+		indexLookup.push_back(&OBJIndices[i]);
+
+	std::sort(indexLookup.begin(), indexLookup.end(), CompareOBJIndexPtr);
+
+	std::map<OBJIndex, unsigned int> normalModelIndexMap;
+	std::map<unsigned int, unsigned int> indexMap;
+	int size = OBJIndices.size();
+	for (unsigned int i = 0; i < numIndices; i++)
+	{
+		OBJIndex* currentIndex = &OBJIndices[i];
+		glm::vec3 currentPosition = vertices[currentIndex->vertexIndex]; //exception on cow model
+		glm::vec2 currentTexCoord;
+		glm::vec3 currentNormal;
+	
+		if (hasUVs)
+		{
+			currentTexCoord = uvs[currentIndex->uvIndex];
+		}
+		else
+			currentTexCoord = glm::vec2(0, 0);
+
+		if (hasNormals)
+			currentNormal = normals[currentIndex->normalIndex];
+		else
+			currentNormal = glm::vec3(0, 0, 0);
+
+		unsigned int normalModelIndex;
+		unsigned int resultModelIndex;
+
+		//Create model to properly generate normals on
+		std::map<OBJIndex, unsigned int>::iterator it = normalModelIndexMap.find(*currentIndex);
+		if (it == normalModelIndexMap.end())
+		{
+			normalModelIndex = normalModel.positions.size();
+
+			normalModelIndexMap.insert(std::pair<OBJIndex, unsigned int>(*currentIndex, normalModelIndex));
+			normalModel.positions.push_back(currentPosition);
+			normalModel.texCoords.push_back(currentTexCoord);
+			normalModel.normals.push_back(currentNormal);
+		}
+		else
+			normalModelIndex = it->second;
+
+		//Create model which properly separates texture coordinates
+		unsigned int previousVertexLocation = FindLastVertexIndex(indexLookup, currentIndex, result);
+
+		if (previousVertexLocation == (unsigned int)-1)
+		{
+			resultModelIndex = result.positions.size();
+
+			result.positions.push_back(currentPosition);
+			result.texCoords.push_back(currentTexCoord);
+			result.normals.push_back(currentNormal);
+		}
+		else
+			resultModelIndex = previousVertexLocation;
+
+		normalModel.indices.push_back(normalModelIndex);
+		result.indices.push_back(resultModelIndex);
+		indexMap.insert(std::pair<unsigned int, unsigned int>(resultModelIndex, normalModelIndex));
+	}
+	if (!hasNormals)
+	{
+		normalModel.CalcNormals();
+
+		for (unsigned int i = 0; i < result.positions.size(); i++)
+			result.normals[i] = normalModel.normals[indexMap[i]];
+	}
+
+	return result;
 }
 
 unsigned int MyObjLoader::FindLastVertexIndex(const std::vector<OBJIndex*>& indexLookup, const OBJIndex * currentIndex, const IndexedModel & result)

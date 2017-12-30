@@ -28,7 +28,7 @@ void FlyCamera::Update(float deltaTime, float deltaCursorX, float deltaCursorY)
 	m_angleX += deltaCursorX * m_rotationSpeed * deltaTime;
 	m_angleY += deltaCursorY * m_rotationSpeed * deltaTime;
 	vec3 position = GetPosition();
-	SetLookAt(position, position + GetForward(), GetUp());
+	SetLookAt(position, position + GetForward(), vec3(0,1,0));
 
 	/*
 	float angleX = deltaCursorX * m_rotationSpeed * deltaTime;

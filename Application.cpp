@@ -24,9 +24,6 @@ Application::~Application()
 	if (m_camera != nullptr)
 		delete m_camera;
 
-	if (m_toyObjLoader != nullptr)
-		delete m_toyObjLoader;
-
 	for (int i = 0; i < m_meshes.size(); i++)
 	{
 		if (m_meshes[i] != nullptr)
@@ -37,13 +34,14 @@ Application::~Application()
 
 void Application::Init()
 {
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(1.0, 0.0, 1.0, 1.0);
 	/*	glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
 	glShadeModel(GL_SMOOTH);
 	*/
 	glEnable(GL_DEPTH_TEST);
-
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 	GLenum err = glewInit();
 	if (err != GLEW_OK)
 		std::cout << "Error!" << std::endl;
@@ -74,40 +72,16 @@ void Application::Init()
 	m_shader = new Shader("Resources\\vsSource.vs", "Resources\\fsSource.fs", true);
 	m_shader->UseShader();
 
-	
-	m_toyObjLoader = new MyObjLoader();
-
-	std::vector<vec3> verts, normals;
-	std::vector<vec2> uvs;
-	std::vector<OBJIndex> meshIndices;
-	
-	if (m_toyObjLoader->LoadObj("Resources\\cube.obj", verts, uvs, normals, meshIndices)) //get vertices, and index object
-
-	//if (m_toyObjLoader->LoadObj("Resources\\cube.obj",
-		//meshVertices, meshUvs, meshNormals, vertexIndices, uvIndices, normalIndices))
-	{
-		std::cout << "Loaded obj successfully!" << std::endl;
-
-
-		//Mesh *mesh = new Mesh(meshVertices, vertexIndices, m_shader->GetShaderID());
-		Mesh* mesh = new Mesh(verts, normals, uvs, meshIndices, m_shader->GetShaderID());
-		m_meshes.push_back(mesh);
-	}
-	else
-	{
-		std::cout << "Could not load obj. Try using a better obj loader" << std::endl;
-	}
+	//Mesh *mesh = new Mesh("Resources\\stanford\\Bunny.obj");
+	//m_meshes.push_back(mesh);
 		
-	m_camera = new FlyCamera(25, 2.5f, 45.0f, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 100);
+	m_camera = new FlyCamera(25, 2.5f, 45.0f, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 1000);
 	m_camera->SetLookAt(vec3(0, 0, -5), vec3(0, 0, 0), vec3(0, 1, 0));
 
 	if (vertices != nullptr)
 		delete[] vertices;
 	if (indices != nullptr)
 		delete[] indices;
-
-
-
 }
 
 void Application::Start(int argc, char * argv[])
@@ -118,6 +92,8 @@ void Application::Start(int argc, char * argv[])
 	m_deltaCursorY = 0;
 	m_frameTimeElapsed = 0;
 	m_position = vec3(0, 0, -5.0f);
+	m_lightManager.AddDirectionalLight(vec3(0, -1, 0));
+	m_lightManager.SetGlobalLightColour(vec3(0, 1, 0));
 
 	m_isRunning = true;
 	m_canRender = false;
@@ -210,18 +186,11 @@ void Application::Update(float deltaTime)
 			char filepath[255];
 			size_t convertedChars = 0;
 			wcstombs_s(&convertedChars, filepath, wlen, wstr, _TRUNCATE);
-			if (m_toyObjLoader->LoadObj(filepath,
-				meshVertices, meshUvs, meshNormals, vertexIndices, uvIndices, normalIndices))
-			{
-				std::cout << "Loaded obj successfully!" << std::endl;
-				Mesh* mesh = new Mesh(meshVertices, vertexIndices, m_shader->GetShaderID());
-				m_meshes.push_back(mesh);
-			}
-			else
-			{
-				std::cout << "Could not load obj. Try using a better obj loader" << std::endl;
-			}
-			
+
+			std::cout << "Loaded obj successfully!" << std::endl;
+
+			Mesh* mesh = new Mesh(filepath);
+			m_meshes.push_back(mesh);
 		}
 	}
 
@@ -236,17 +205,26 @@ void Application::Draw(float deltaTime)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	//m_shader->UseShader(); //probably doesn't need to call glUseProgram() every frame
 
-	//unsigned int mvpLocation = glGetUniformLocation(m_shader->GetShaderID(), "modelViewProjection");
-	//glUniformMatrix4fv(mvpLocation, 1, GL_FALSE, glm::value_ptr(m_camera->GetProjectionViewTransform()));
+	//this should be moved into Mesh::Draw() and should only affect that specific mesh's shader
+
 	unsigned int shaderID = m_shader->GetShaderID();
 	unsigned int model = glGetUniformLocation(shaderID, "model");
 	unsigned int view = glGetUniformLocation(shaderID, "view");
 	unsigned int projection = glGetUniformLocation(shaderID, "projection");
-		
+	unsigned int lightDirLoc = glGetUniformLocation(shaderID, "lightDir");
+	unsigned int globalLightColourLoc = glGetUniformLocation(shaderID, "globalLightColour");
+
 	glUniformMatrix4fv(model, 1, GL_FALSE, glm::value_ptr(glm::mat4()));
 	m_camera->UpdateViewTransform();
 	glUniformMatrix4fv(view, 1, GL_FALSE, glm::value_ptr(m_camera->GetViewTransform()));
 	glUniformMatrix4fv(projection, 1, GL_FALSE, glm::value_ptr(m_camera->GetProjectionTransform()));
+
+	vec3* dirs = m_lightManager.GetDirectionalLights();
+	glUniform3fv(lightDirLoc, m_lightManager.GetNumDirectionalLights(), glm::value_ptr(dirs[0]));
+	//set global light colour
+	vec3 globalColour = m_lightManager.GetGlobalLightColour();
+	glUniform3fv(globalLightColourLoc, 1, glm::value_ptr(globalColour));
+
 
 	m_shader->Update();
 	//open old bootstrap project and figure it out
@@ -277,6 +255,12 @@ void Application::Reshape(int width, int height)
 	glViewport(0, 0, width, height);
 
 	m_camera->SetPerspective(m_camera->GetFOV(), width / (float)height, m_camera->GetNearPlane(), m_camera->GetFarPlane());
+}
+
+void Application::ConstructMesh(const char * filename)
+{
+	Mesh* mesh = new Mesh(filename);
+	m_meshes.push_back(mesh);
 }
 
 void Application::CreateBuffers(int numAttribs, int * numFloats, int numVerts, int numIndices, Vertex * vertices, unsigned int * indices)
@@ -407,41 +391,41 @@ void Application::MouseMoveWrapper(int x, int y)
 void Application::KeyboardDownWrapper(unsigned char key, int x, int y)
 {
 	m_instance->m_inputModifer = glutGetModifiers();
-	
+
 	if (key == 27) //escape key
 	{
 		m_instance->Quit();
 	}
-	if (key == 'w') //up
+	if (tolower(key) == 'w') //up
 	{
 		m_instance->m_keysHeldDown.insert('w');
 	}
-	else if (key == 's') //down
+	else if (tolower(key) == 's') //down
 	{
 		m_instance->m_keysHeldDown.insert('s');
 	}
 
-	else if (key == 'd') //right
+	else if (tolower(key) == 'd') //right
 	{
 		m_instance->m_keysHeldDown.insert('d');
 	}
 
-	else if (key == 'a') //left
+	else if (tolower(key) == 'a') //left
 	{
 		m_instance->m_keysHeldDown.insert('a');
 	}
 
-	else if (key == 'q')
+	else if (tolower(key) == 'q')
 	{
 		m_instance->m_keysHeldDown.insert('q');
 	}
 
-	else if (key == 'e')
+	else if (tolower(key) == 'e')
 	{
 		m_instance->m_keysHeldDown.insert('e');
 	}
 	
-	else if (key == 'o')
+	else if (tolower(key) == 'o')
 	{
 		auto end = m_instance->m_keysThatMustGoUp.end();
 		if (m_instance->m_keysThatMustGoUp.find('o') == end)
@@ -458,36 +442,36 @@ void Application::KeyboardUpWrapper(unsigned char key, int x, int y)
 {
 	//m_instance->m_inputModifer = 0;
 
-	if (key == 'w') //up
+	if (tolower(key) == 'w') //up
 	{
 		m_instance->m_keysHeldDown.erase('w');
 	}
-	else if (key == 's') //down
+	else if (tolower(key) == 's') //down
 	{
 		m_instance->m_keysHeldDown.erase('s');
 	}
 
-	else if (key == 'd') //right
+	else if (tolower(key) == 'd') //right
 	{
 		m_instance->m_keysHeldDown.erase('d');
 	}
 
-	else if (key == 'a') //left
+	else if (tolower(key) == 'a') //left
 	{
 		m_instance->m_keysHeldDown.erase('a');
 	}
 
-	else if (key == 'q') //up
+	else if (tolower(key) == 'q') //up
 	{
 		m_instance->m_keysHeldDown.erase('q');
 	}
 
-	else if (key == 'e') //left
+	else if (tolower(key) == 'e') //left
 	{
 		m_instance->m_keysHeldDown.erase('e');
 	}
 
-	else if (key == 'o')
+	else if (tolower(key) == 'o')
 	{
 		auto end = m_instance->m_keysThatMustGoUp.end();
 		if (m_instance->m_keysThatMustGoUp.find('o') != end)

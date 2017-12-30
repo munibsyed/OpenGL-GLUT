@@ -26,7 +26,6 @@ Shader::Shader(const char* vs, const char* fs, bool fromFile)
 			fsContents += line + '\n';
 		}
 		m_fsSource = fsContents.c_str();
-
 	}
 	else
 	{

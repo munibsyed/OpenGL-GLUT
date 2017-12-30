@@ -13,6 +13,7 @@ using glm::mat4;
 struct Vertex
 {
 	vec4 position;
+	vec4 normal;
 	vec4 colour;
 };
 
@@ -43,6 +44,8 @@ public:
 
 	~Mesh();
 	
+	void InitMesh(const IndexedModel& model);
+
 	void CreateBuffers(int numAttribs, int* numFloats, int numVerts, int numIndices, Vertex *vertices, unsigned int* indices);
 
 	void Draw();
@@ -54,14 +57,25 @@ public:
 	void Rotate(float x, float y, float z);
 
 
-
 private:
+	enum VBO_Descriptors
+	{
+		POSITION_VB,
+		TEXCOORD_VB,
+		NORMAL_VB,
+		INDEX_VB
+	};
+
+	const static int NUM_BUFFERS = 4;
 	std::vector<Vertex> m_vertices;
 	std::vector<OBJIndex> m_objIndices;
 	std::vector<unsigned int> m_vertexIndices;
 	std::vector<OpenGLInfo> m_glInfo;
 
 	unsigned int m_VBO, m_VAO, m_IBO;
+	unsigned int m_VBOs[NUM_BUFFERS];
+	unsigned int m_numIndices;
+
 	unsigned int m_shaderID;
 
 	mat4 m_modelTransform;

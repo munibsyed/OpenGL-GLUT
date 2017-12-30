@@ -3,8 +3,10 @@
 #include <cstdio>
 #include <iostream>
 #include <iomanip>
+#include <thread>
 #include <glm.hpp>
 #include <unordered_set>
+#include "LightManager.h"
 #include "Shader.h"
 #include "FlyCamera.h"
 #include "MyObjLoader.h"
@@ -35,6 +37,8 @@ public:
 	virtual void MouseButtonPressed(int button, int state, int x, int y);	
 
 	virtual void Reshape(int width, int height);
+
+	void ConstructMesh(const char* filename);
 	
 	void CreateBuffers(int numAttribs, int* numFloats, int numVerts, int numIndices, Vertex *vertices, unsigned int* indices);
 
@@ -51,7 +55,10 @@ public:
 	void SetInstance();
 
 private:
-	
+	const static int NUM_LIGHTS = 4;
+
+	LightManager m_lightManager;
+
 	int m_inputModifer;
 	std::unordered_set<char> m_keysHeldDown;
 	std::unordered_set<char> m_keysThatMustGoUp;
