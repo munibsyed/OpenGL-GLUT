@@ -34,7 +34,7 @@ struct OBJVertex
 class Mesh
 {
 public:
-	Mesh(const char* filename);
+	Mesh(const char* filename, unsigned int shaderID, int drawMode);
 
 	Mesh(const std::vector<vec3> &vertices, const std::vector<vec3> &normals, const std::vector<vec2> &uvs, const std::vector<OBJIndex> &indices, unsigned int shaderID);
 
@@ -48,13 +48,15 @@ public:
 
 	void CreateBuffers(int numAttribs, int* numFloats, int numVerts, int numIndices, Vertex *vertices, unsigned int* indices);
 
-	void Draw();
+	void Update(float deltaTime);
+
+	void Draw(mat4 view, mat4 projection);
 
 	void SetPosition(float x, float y, float z);
 
 	vec3 GetPosition();
 	
-	void Rotate(float x, float y, float z);
+	void Rotate(float xDeg, float yDeg, float zDeg);
 
 
 private:
@@ -65,6 +67,14 @@ private:
 		NORMAL_VB,
 		INDEX_VB
 	};
+
+	enum DRAW_MODE
+	{
+		FILL,
+		WIREFRAME
+	};
+
+	int m_drawMode;
 
 	const static int NUM_BUFFERS = 4;
 	std::vector<Vertex> m_vertices;

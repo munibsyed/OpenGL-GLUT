@@ -1,8 +1,10 @@
 #include "Mesh.h"
 
 
-Mesh::Mesh(const char * filename)
+Mesh::Mesh(const char * filename, unsigned int shaderID, int drawMode)
 {
+	m_drawMode = drawMode;
+	m_shaderID = shaderID;
 	MyObjLoader objLoader;
 	bool result = objLoader.LoadObj(filename);
 	if (result)
@@ -213,27 +215,38 @@ void Mesh::CreateBuffers(int numAttribs, int * numFloats, int numVerts, int numI
 	}
 }
 
-void Mesh::Draw()
+void Mesh::Update(float deltaTime)
 {
-	unsigned int size = m_glInfo.size();
-	if (size == 0)
-	{
-		//glBindVertexArray(m_VAO);
-		//size = m_objIndices.size();
-		////glDrawArrays(GL_TRIANGLES, 0, 24);
-		//glDrawElements(GL_TRIANGLES, size, GL_UNSIGNED_INT, 0);
+	Rotate(0, 0.5f * deltaTime, 0);
+}
 
-		glBindVertexArray(m_VAO);
-		glDrawElementsBaseVertex(GL_TRIANGLES, m_numIndices, GL_UNSIGNED_INT, 0, 0);
-		glBindVertexArray(0);
-	}
-	else
+void Mesh::Draw(mat4 view, mat4 projection)
+{
+	glUseProgram(m_shaderID);
+	if (m_drawMode == 1) //if wireframe mode
 	{
-		for (int i = 0; i < size; i++)
-		{
-			glBindVertexArray(m_glInfo[i].m_VAO);
-			glDrawArrays(GL_TRIANGLES, 0, m_glInfo[i].m_faceCount * 3);
-		}
+		glPolygonMode(GL_FRONT, GL_LINE);
+		glPolygonMode(GL_BACK, GL_LINE);
+	}
+
+	//it would be good if we would un-hardcode this
+	unsigned int modelLoc = glGetUniformLocation(m_shaderID, "model");
+	unsigned int viewLoc = glGetUniformLocation(m_shaderID, "view");
+	unsigned int projectionLoc = glGetUniformLocation(m_shaderID, "projection");
+
+	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(m_modelTransform));
+	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+	glBindVertexArray(m_VAO);
+	glDrawElementsBaseVertex(GL_TRIANGLES, m_numIndices, GL_UNSIGNED_INT, 0, 0);
+	glBindVertexArray(0);
+
+	//set back to normal
+	if (m_drawMode == 1)
+	{
+		glPolygonMode(GL_FRONT, GL_FILL);
+		glPolygonMode(GL_BACK, GL_FILL);
 	}
 }
 
@@ -249,10 +262,10 @@ vec3 Mesh::GetPosition()
 	return vec3(m_modelTransform[3]);
 }
 
-void Mesh::Rotate(float x, float y, float z)
+void Mesh::Rotate(float xDeg, float yDeg, float zDeg)
 {
-	m_modelTransform = glm::rotate(m_modelTransform, z, vec3(0, 0, 1));
-	m_modelTransform = glm::rotate(m_modelTransform, y, vec3(0, 1, 0));
-	m_modelTransform = glm::rotate(m_modelTransform, x, vec3(1, 0, 0));
+	m_modelTransform = glm::rotate(m_modelTransform, zDeg, vec3(0, 0, 1));
+	m_modelTransform = glm::rotate(m_modelTransform, yDeg, vec3(0, 1, 0));
+	m_modelTransform = glm::rotate(m_modelTransform, xDeg, vec3(1, 0, 0));
 
 }

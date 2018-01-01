@@ -1,4 +1,6 @@
 #include "Application.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "dependencies\stb\stb_image.h"
 
 Application* Application::m_instance = nullptr;
 const int targetFPS = 60;
@@ -14,10 +16,12 @@ Application::Application()
 
 Application::~Application()
 {
-	//what if the destructor called without Start() ever being called?
+	//This function wasn't being called earlier because glutSetOption had not been set to continue execution on OpenGL application exit
+	Shutdown();
+}
 
-	//I need to take care here
-
+void Application::Shutdown()
+{
 	if (m_shader != nullptr)
 		delete m_shader;
 
@@ -27,85 +31,74 @@ Application::~Application()
 	for (int i = 0; i < m_meshes.size(); i++)
 	{
 		if (m_meshes[i] != nullptr)
-			delete[] m_meshes[i];
+			delete m_meshes[i];
 	}
+	std::cout << "Deleting" << std::endl;
 }
 
 
 void Application::Init()
-{
-	glClearColor(1.0, 0.0, 1.0, 1.0);
-	/*	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-	glShadeModel(GL_SMOOTH);
-	*/
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	GLenum err = glewInit();
-	if (err != GLEW_OK)
-		std::cout << "Error!" << std::endl;
-
-
-	Vertex *vertices = nullptr;
-	unsigned int* indices = nullptr;
-	//vertices = new Vertex[6];
-	//indices = new unsigned int[6]{ 0, 1, 2, 3, 4, 5 };
-	//vertices[0].position = vec4(-2.5f, 0.0f, 0.0f, 1.0f);
-	//vertices[1].position = vec4(0.0f, 2.5f, 0.0f, 1.0f);
-	//vertices[2].position = vec4(2.5f, 0.0f, 0.0f, 1.0f);
-
-	//vertices[3].position = vec4(-5.5f, 10.0f, -30.0f, 1.0f);
-	//vertices[4].position = vec4(0.0f, 15.5f, -30.0f, 1.0f);
-	//vertices[5].position = vec4(5.5f, 10.0f, -30.0f, 1.0f);
-
-
-	//vertices[0].colour = vec4(1.0f, 0.0f, 0.0f, 0.5f);
-	//vertices[1].colour = vec4(0.0f, 1.0f, 0.0f, 0.5f);
-	//vertices[2].colour = vec4(1.0f, 0.0f, 1.0f, 0.5f);
-
-	//vertices[3].colour = vec4(0.0f, 0.0f, 1.0f, 1.0f);
-	//vertices[4].colour = vec4(0.0f, 0.0, 1.0f, 1.0f);
-	//vertices[5].colour = vec4(0.0f, 0.0f, 1.0f, 1.0f);
-	
-
-	m_shader = new Shader("Resources\\vsSource.vs", "Resources\\fsSource.fs", true);
-	m_shader->UseShader();
-
-	//Mesh *mesh = new Mesh("Resources\\stanford\\Bunny.obj");
-	//m_meshes.push_back(mesh);
-		
-	m_camera = new FlyCamera(25, 2.5f, 45.0f, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 1000);
-	m_camera->SetLookAt(vec3(0, 0, -5), vec3(0, 0, 0), vec3(0, 1, 0));
-
-	if (vertices != nullptr)
-		delete[] vertices;
-	if (indices != nullptr)
-		delete[] indices;
-}
-
-void Application::Start(int argc, char * argv[])
 {
 	m_currTime = 0;
 	m_prevTime = 0;
 	m_deltaCursorX = 0;
 	m_deltaCursorY = 0;
 	m_frameTimeElapsed = 0;
-	m_position = vec3(0, 0, -5.0f);
-	m_lightManager.AddDirectionalLight(vec3(0, -1, 0));
-	m_lightManager.SetGlobalLightColour(vec3(0, 1, 0));
 
 	m_isRunning = true;
 	m_canRender = false;
-	SetInstance();
+	m_canRender = false;
+	m_instance = this;
+
+
+	GLenum err = glewInit();
+	//seems like glewInit() can't be called until a window instance exists
+	if (err != GLEW_OK)
+	{
+		std::cout << "Error: " << glewGetErrorString(err) << std::endl;
+	}
+
+	m_position = vec3(0, 0, -5.0f);
+
+	//add lights!
+	//spot light still needs a lot of work
+	m_lightManager.AddDirectionalLight(vec3(0, -1, 0));
+	m_lightManager.SetGlobalLightColour(vec3(0, 1, 0));
+	m_lightManager.AddSpecularLight(vec3(0, 0, -5), vec3(0, 0, 1));
+	m_lightManager.SetSpecularPower(4);
+	m_lightManager.AddSpotLight(vec3(0, 0, -5), vec3(0, 0, 1), 0.2f);
+
+	m_shader = new Shader("Resources\\vsSource.vs", "Resources\\fsSource.fs", true);
+	m_shader->UseShader();
+
+	//Load texture
+	//int imageWidth, imageHeight, imageFormat;
+	//unsigned char* data = stbi_load("Resources\\brick_texture.jpg", &imageWidth, &imageHeight, &imageFormat, STBI_default);
+
+
+	//Mesh *mesh = new Mesh("Resources\\stanford\\Bunny.obj");
+	//m_meshes.push_back(mesh);
+		
+	m_camera = new FlyCamera(25, 2.5f, 45.0f, WINDOW_WIDTH / float(WINDOW_HEIGHT), 0.1f, 1000);
+	m_camera->SetLookAt(vec3(0, 0, -5), vec3(0, 0, 0), vec3(0, 1, 0));
+}
+
+void Application::Start(int argc, char * argv[])
+{
+
 	glutInit(&argc, argv);
-	glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
+	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_CONTINUE_EXECUTION);
 	//perhaps make the display mode customizable in the future
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH | GLUT_STENCIL);
 	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 	//could add glutInitWindowPosition(), but I will leave it out for now
 
 	m_windowID = glutCreateWindow(m_title);
+
+	glClearColor(1.0, 0.0, 1.0, 1.0); //does not work until a window context exists
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 
 	//I should add the error handling code
 
@@ -123,7 +116,6 @@ void Application::Start(int argc, char * argv[])
 
 	glutIdleFunc(RunWrapper);
 	glutMainLoop();
-	
 }
 
 void Application::Update(float deltaTime)
@@ -160,6 +152,16 @@ void Application::Update(float deltaTime)
 		m_camera->AddDeltaPosition(-m_camera->GetUp());
 	}
 
+	m_camera->Update(deltaTime, m_deltaCursorX, m_deltaCursorY);
+	m_hasMouseMoved = false;
+
+	//Perform update logic on meshes if needed
+
+	for (int i = 0; i < m_meshes.size(); i++)
+	{
+		m_meshes[i]->Update(deltaTime);
+	}
+
 	//CTRL modifier
 	//if (m_inputModifer == 2)
 	{
@@ -188,52 +190,61 @@ void Application::Update(float deltaTime)
 			wcstombs_s(&convertedChars, filepath, wlen, wstr, _TRUNCATE);
 
 			std::cout << "Loaded obj successfully!" << std::endl;
-
-			Mesh* mesh = new Mesh(filepath);
+			Mesh* mesh = new Mesh(filepath, m_shader->GetShaderID(), 0);
 			m_meshes.push_back(mesh);
 		}
 	}
-
-
-	m_camera->Update(deltaTime, m_deltaCursorX, m_deltaCursorY);
-	m_hasMouseMoved = false;
-
 }
 
 void Application::Draw(float deltaTime)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//m_shader->UseShader(); //probably doesn't need to call glUseProgram() every frame
 
-	//this should be moved into Mesh::Draw() and should only affect that specific mesh's shader
+	//Set global things here that affect all meshes, such as lighting
 
 	unsigned int shaderID = m_shader->GetShaderID();
-	unsigned int model = glGetUniformLocation(shaderID, "model");
-	unsigned int view = glGetUniformLocation(shaderID, "view");
-	unsigned int projection = glGetUniformLocation(shaderID, "projection");
 	unsigned int lightDirLoc = glGetUniformLocation(shaderID, "lightDir");
 	unsigned int globalLightColourLoc = glGetUniformLocation(shaderID, "globalLightColour");
+	unsigned int cameraPosLoc = glGetUniformLocation(shaderID, "cameraPos");
+	unsigned int specDirLoc = glGetUniformLocation(shaderID, "specDir");
+	unsigned int specPosLoc = glGetUniformLocation(shaderID, "specPos");
+	unsigned int specPowLoc = glGetUniformLocation(shaderID, "specPow");
 
-	glUniformMatrix4fv(model, 1, GL_FALSE, glm::value_ptr(glm::mat4()));
-	m_camera->UpdateViewTransform();
-	glUniformMatrix4fv(view, 1, GL_FALSE, glm::value_ptr(m_camera->GetViewTransform()));
-	glUniformMatrix4fv(projection, 1, GL_FALSE, glm::value_ptr(m_camera->GetProjectionTransform()));
+	unsigned int spotLightPosLoc = glGetUniformLocation(shaderID, "spotLightPos");
+	unsigned int spotLightDirLoc = glGetUniformLocation(shaderID, "spotLightDir");
+	unsigned int spotLightAngleLoc = glGetUniformLocation(shaderID, "spotLightAngles");
+
 
 	vec3* dirs = m_lightManager.GetDirectionalLights();
+	vec3* specDirs = m_lightManager.GetSpecularDirections();
+	vec3* specPositions = m_lightManager.GetSpecularPositions();
+	vec3 globalColour = m_lightManager.GetGlobalLightColour();
+	vec3* spotLightPos = m_lightManager.GetSpotLightPositions();
+	vec3* spotLightDir = m_lightManager.GetSpecularDirections();
+	float* spotLightAngle = m_lightManager.GetSpotLightAngles();
+
+	//set directional lights
 	glUniform3fv(lightDirLoc, m_lightManager.GetNumDirectionalLights(), glm::value_ptr(dirs[0]));
 	//set global light colour
-	vec3 globalColour = m_lightManager.GetGlobalLightColour();
 	glUniform3fv(globalLightColourLoc, 1, glm::value_ptr(globalColour));
+	//set camera pos
+	glUniform3fv(cameraPosLoc, 1, glm::value_ptr(m_camera->GetPosition()));
+	//set specular lights
+	glUniform3fv(specDirLoc, 1, glm::value_ptr(specDirs[0]));
+	glUniform3fv(specPosLoc, 1, glm::value_ptr(specPositions[0]));
+	glUniform1f(specPowLoc, m_lightManager.GetSpecularPower());
 
+	//set spot lights
+	glUniform3fv(spotLightPosLoc, 1, glm::value_ptr(spotLightPos[0]));
+	glUniform3fv(spotLightDirLoc, 1, glm::value_ptr(spotLightDir[0]));
+	glUniform1fv(spotLightAngleLoc, 1, &spotLightAngle[0]);
 
 	m_shader->Update();
 	//open old bootstrap project and figure it out
 	for (int i = 0; i < m_meshes.size(); i++)
 	{
-		m_meshes[i]->Draw();
+		m_meshes[i]->Draw(m_camera->GetViewTransform(), m_camera->GetProjectionTransform());
 	}
-	/*glBindVertexArray(m_VAO);
-	glDrawElements(GL_TRIANGLES, meshVertices.size(), GL_UNSIGNED_INT, 0);*/
 }
 
 void Application::Display()
@@ -259,7 +270,7 @@ void Application::Reshape(int width, int height)
 
 void Application::ConstructMesh(const char * filename)
 {
-	Mesh* mesh = new Mesh(filename);
+	Mesh* mesh = new Mesh(filename, m_shader->GetShaderID(), 0);
 	m_meshes.push_back(mesh);
 }
 
@@ -325,7 +336,8 @@ void Application::Run()
 	}
 	else
 	{
-		glutDestroyWindow(m_windowID);
+		glutLeaveMainLoop();
+		//glutDestroyWindow(m_windowID);
 	}
 }
 

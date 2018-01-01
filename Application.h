@@ -8,9 +8,11 @@
 #include <unordered_set>
 #include "LightManager.h"
 #include "Shader.h"
+#include "SolidColourShader.h"
 #include "FlyCamera.h"
 #include "MyObjLoader.h"
 #include "OpenFileDialog.h"
+#include <freeglut.h>
 
 using glm::vec3;
 using glm::vec4;
